@@ -9,6 +9,7 @@ Variables de entorno:
   DB_PATH      -> (opcional) ruta del archivo de base de datos. Por defecto: cobros.db
 """
 import os
+import asyncio
 import html
 import logging
 import sqlite3
@@ -1078,6 +1079,8 @@ def main():
         app.job_queue.run_daily(recordatorio, time=time(7, 30, tzinfo=TZ))     # aviso diario 7:30 a.m.
         app.job_queue.run_daily(respaldo_diario, time=time(22, 0, tzinfo=TZ))  # respaldo 10:00 p.m.
 
+    # Python 3.14 ya no crea el "event loop" solo; lo creamos aquí para que funcione en Termux
+    asyncio.set_event_loop(asyncio.new_event_loop())
     log.info("Bot iniciado ✅")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
