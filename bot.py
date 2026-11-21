@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup,
                       ReplyKeyboardMarkup, BotCommand)
+from telegram.error import NetworkError, TimedOut
 from telegram.ext import (Application, CommandHandler, MessageHandler, ConversationHandler,
                           CallbackQueryHandler, ContextTypes, filters)
 
@@ -1267,13 +1268,31 @@ async def post_init(app: Application):
     ])
 
 
+async def manejar_error(update, context):
+    """Cortes de internet: solo un aviso corto (el bot reintenta solo). Otros errores: se registran."""
+    if isinstance(context.error, (NetworkError, TimedOut)):
+        log.warning("🌐 Internet inestable, reintentando... (%s)", context.error.__class__.__name__)
+        return
+    log.error("Error inesperado", exc_info=context.error)
+    try:
+        if isinstance(update, Update) and update.effective_message:
+            await update.effective_message.reply_text("⚠️ Hubo un error. Intenta de nuevo o toca ❌ Cancelar.",
+                                                      reply_markup=MENU)
+    except Exception:
+        pass
+
+
 def boton(texto):
     return filters.Text([texto])
 
 
 def construir_app():
     init_db()
-    app = Application.builder().token(TOKEN).post_init(post_init).build()
+    app = (Application.builder().token(TOKEN).post_init(post_init)
+           .connect_timeout(20).read_timeout(30).write_timeout(30)
+           .get_updates_connect_timeout(20).get_updates_read_timeout(40)
+           .build())
+    app.add_error_handler(manejar_error)
 
     # Texto normal que no sea comando ni botón del menú
     TXT = filters.TEXT & ~filters.COMMAND & ~filters.Text(BOTONES_MENU + [B_CANCELAR])
