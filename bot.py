@@ -10,6 +10,8 @@ Variables de entorno:
   DB_PATH      -> (opcional) ruta del archivo de base de datos. Por defecto: cobros.db
 """
 import os
+import sys
+import fcntl
 import asyncio
 import html
 import logging
@@ -24,7 +26,7 @@ from zoneinfo import ZoneInfo
 from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup,
                       ReplyKeyboardMarkup, BotCommand)
 from telegram.error import NetworkError, TimedOut
-from telegram.ext import (Application, CommandHandler, MessageHandler, ConversationHandler,
+from telegram.ext import (Application, PicklePersistence, CommandHandler, MessageHandler, ConversationHandler,
                           CallbackQueryHandler, ContextTypes, filters)
 
 warnings.filterwarnings("ignore", message=".*per_message.*")
@@ -35,6 +37,7 @@ log = logging.getLogger("bot")
 TOKEN = os.environ.get("BOT_TOKEN", "")
 ALLOWED = {int(x) for x in os.environ.get("ALLOWED_IDS", "").replace(" ", "").split(",") if x}
 DB = os.environ.get("DB_PATH", "cobros.db")
+CARPETA = os.path.dirname(os.path.abspath(DB))
 TZ = ZoneInfo("America/Bogota")
 STOCK_BAJO = 3
 END = ConversationHandler.END
@@ -1288,7 +1291,9 @@ def boton(texto):
 
 def construir_app():
     init_db()
-    app = (Application.builder().token(TOKEN).post_init(post_init)
+    # Guarda en qué paso va cada formulario, para no perderlo si el bot se reinicia
+    memoria = PicklePersistence(filepath=os.path.join(CARPETA, "conversaciones.pkl"))
+    app = (Application.builder().token(TOKEN).post_init(post_init).persistence(memoria)
            .connect_timeout(20).read_timeout(30).write_timeout(30)
            .get_updates_connect_timeout(20).get_updates_read_timeout(40)
            .build())
@@ -1332,6 +1337,8 @@ def construir_app():
         },
         fallbacks=[MessageHandler(boton(B_CANCELAR), cancelar), CommandHandler("cancelar", cancelar)],
         allow_reentry=True,
+        name="principal",
+        persistent=True,
     )
     app.add_handler(conv)
 
@@ -1355,9 +1362,24 @@ def construir_app():
     return app
 
 
+_candado = None
+
+
+def una_sola_copia():
+    """Impide que corran dos copias del bot a la vez en el mismo equipo."""
+    global _candado
+    _candado = open(os.path.join(CARPETA, "bot.lock"), "w")
+    try:
+        fcntl.flock(_candado, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log.error("⛔ Ya hay otra copia del bot corriendo. Esta se cierra.")
+        sys.exit(3)
+
+
 def main():
     if not TOKEN:
         raise SystemExit("Falta la variable BOT_TOKEN")
+    una_sola_copia()
     # Python 3.14 ya no crea el "event loop" solo; lo creamos aquí para que funcione en Termux
     asyncio.set_event_loop(asyncio.new_event_loop())
     app = construir_app()

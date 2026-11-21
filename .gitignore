@@ -2,3 +2,5 @@
 config.sh
 __pycache__/
 registro.log
+conversaciones.pkl
+bot.lock

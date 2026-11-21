@@ -6,6 +6,10 @@ source ~/bot/config.sh      # aquí están BOT_TOKEN y ALLOWED_IDS
 export DB_PATH=~/bot/cobros.db
 while true; do
   python bot.py >> ~/bot/registro.log 2>&1
+  if [ $? -eq 3 ]; then
+    echo "Ya hay un bot corriendo. No se abre otro."
+    exit 0
+  fi
   echo "$(date) - el bot se detuvo, reiniciando en 10 s..." >> ~/bot/registro.log
   sleep 10
 done
