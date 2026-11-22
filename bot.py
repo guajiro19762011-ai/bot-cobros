@@ -34,9 +34,10 @@ logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loggin
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("bot")
 
-TOKEN = os.environ.get("BOT_TOKEN", "")
+TOKEN = os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED = {int(x) for x in os.environ.get("ALLOWED_IDS", "").replace(" ", "").split(",") if x}
-DB = os.environ.get("DB_PATH", "cobros.db")
+# En hostings como FadeHost la carpeta /data es la que no se borra
+DB = os.environ.get("DB_PATH") or ("/data/cobros.db" if os.path.isdir("/data") else "cobros.db")
 CARPETA = os.path.dirname(os.path.abspath(DB))
 TZ = ZoneInfo("America/Bogota")
 STOCK_BAJO = 3
